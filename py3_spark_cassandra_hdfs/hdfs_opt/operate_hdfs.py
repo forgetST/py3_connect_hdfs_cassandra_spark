@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # JetBrains PyCharm 2018.1.1
 
+import os
 import logging as logger
 from .connect_hdfs import fs
 
@@ -167,7 +168,13 @@ def mkdir(path, **kwargs):
     -----
     libhdfs does not support create_parents=False, so we ignore this here
     """
-    fs.mkdir(path, kwargs)
+    try:
+        fs.mkdir(path, kwargs)
+        status = True
+    except Exception as e:
+        logger.error(e)
+        status = exists(path)
+    return status
 
 
 #  Open HDFS file for reading or writing
@@ -215,14 +222,22 @@ def download(dst_path, loc_path, buffer_size=None):
     :param buffer_size:
     :return:
     """
-    fs.download(dst_path, loc_path, buffer_size)
+    try:
+        fs.download(dst_path, loc_path, buffer_size)
+    except Exception as e:
+        logger.error(e)
 
 
-def upload(path, stream, buffer_size=None):
+# upload local file to hdfs
+def upload(dst_file_path, loc_file_path, buffer_size=None):
     """
     Upload file-like object to HDFS path
     """
-    fs.upload(path, stream, buffer_size)
+    try:
+        with open(loc_file_path, 'rb') as stream:
+            fs.upload(dst_file_path, stream, buffer_size)
+    except Exception as e:
+        logger.error(e)
 
 
 # Return free space on disk, like the UNIX df command
@@ -324,6 +339,44 @@ def get_space_used(option=None, decimal_place=2, is_print=None):
                                    option + 'b')
     print("used space: %s" % space_used) if is_print is not None else None
     return space_used
+
+
+# extend function
+# -------------------------------------
+# upload local file or directory to hdfs
+def put(loc_path, dst_path):
+    if os.path.exists(loc_path) and os.path.isfile(loc_path):
+        upload(dst_path, loc_path)
+        return True
+
+    if os.path.isdir(loc_path):
+        pass
+
+    return False
+
+
+# download hdfs file or directory to local
+def get(dst_path, loc_path):
+    pass
+
+
+def _read_first_line(path, decode='utf-8', buffer_size=1000):
+    with open(path, 'rb', buffer_size) as handle:
+        first_line = b''
+        while b'\n' not in first_line:
+            first_line += handle.read(buffer_size)
+        first_line = first_line.decode(decode).strip().split('/n')[0]
+    return first_line
+
+
+# read hdfs file head
+def get_head(dst_path):
+    header = {}
+    if exists(dst_path):
+        file_list = ls(dst_path)
+        header = dict(map(lambda name: (os.path.basename(name),
+                                        _read_first_line(name)), file_list))
+    return header
 
 
 if __name__ == "__main__":
