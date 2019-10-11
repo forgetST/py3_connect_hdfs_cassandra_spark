@@ -7,7 +7,7 @@ from .connect_hdfs import fs
 
 __all__ = ['exists', 'cat', 'delete', 'rm', 'chmod', 'chown', 'info', 'ls',
            'mkdir', 'open', 'rename', 'download', 'upload', 'df', 'disk_usage',
-           'get_capacity', 'get_space_used']
+           'get_capacity', 'get_space_used', 'get', 'put']
 
 
 # judgement path is exist
@@ -343,6 +343,18 @@ def get_space_used(option=None, decimal_place=2, is_print=None):
 
 # extend function
 # -------------------------------------
+def _traverse_directory(loc_path):
+    file_list = []
+    for dirpath, dirnames, filenames in os.walk(loc_path):
+        file_list += [os.path.join(dirpath, filename) for filename in filenames]
+    return file_list
+
+
+def _replace_path(loc_path, dst_path, rep_list):
+    loc_path_dirname = os.path.dirname(loc_path)
+    return [name.replace(loc_path_dirname, dst_path) for name in rep_list]
+
+
 # upload local file or directory to hdfs
 def put(loc_path, dst_path):
     if os.path.exists(loc_path) and os.path.isfile(loc_path):
@@ -350,8 +362,9 @@ def put(loc_path, dst_path):
         return True
 
     if os.path.isdir(loc_path):
-        pass
-
+        file_list = _traverse_directory(loc_path)
+        dst_file_list = _replace_path(loc_path, dst_path, file_list)
+        map(lambda x: upload(*x), zip(dst_file_list, file_list))
     return False
 
 
